@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Editor, { loader } from '@monaco-editor/react';
-
-// Load Monaco Editor assets locally from public folder rather than CDN
-loader.config({ paths: { vs: '/monaco-editor/min/vs' } });
+import Editor from '@monaco-editor/react';
 import { 
   Shield, AlertTriangle, Play, CheckCircle2, User as UserIcon, LogOut, Clock,
   FileCode, Terminal, ZoomIn, ZoomOut, Maximize, RefreshCw, Send, Plus, 
@@ -10,7 +7,9 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 
-const API_BASE = 'http://localhost:5000/api';
+// Dynamic API base: uses env var in dev, relative path on Vercel production
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const WS_URL = import.meta.env.VITE_WS_URL || '';
 
 // Types
 interface User {
@@ -168,17 +167,26 @@ export default function App() {
     }
   }, [token, currentPage]);
 
-  // WebSocket Live Updates Connection
+  // WebSocket Live Updates Connection (with polling fallback for serverless)
   useEffect(() => {
     if (token && user && (user.role === 'admin' || user.role === 'faculty')) {
-      const socket = io('http://localhost:5000');
-      socket.on('connect', () => console.log('WebSocket connection for monitor active'));
-      socket.on('monitor:refresh', () => {
-        refreshMonitoringStats();
-      });
-      return () => {
-        socket.disconnect();
-      };
+      // Use WebSocket when WS_URL is available (local dev), otherwise poll
+      if (WS_URL) {
+        const socket = io(WS_URL);
+        socket.on('connect', () => console.log('WebSocket connection for monitor active'));
+        socket.on('monitor:refresh', () => {
+          refreshMonitoringStats();
+        });
+        return () => {
+          socket.disconnect();
+        };
+      } else {
+        // Polling fallback for Vercel serverless (no WebSocket support)
+        const interval = setInterval(() => {
+          refreshMonitoringStats();
+        }, 10000); // Poll every 10 seconds
+        return () => clearInterval(interval);
+      }
     }
   }, [token, user]);
 

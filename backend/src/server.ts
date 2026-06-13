@@ -14,15 +14,24 @@ import { evaluateCode } from './services/ai';
 import { generateStudentPDF, generateBatchExcel, sendEmailWithReports } from './services/reports';
 
 dotenv.config();
+dotenv.config({ path: require('path').resolve(__dirname, '../../.env') });
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
+
+// Socket.IO is only used in standalone (local dev) mode, not on Vercel serverless
+const isServerless = !!process.env.VERCEL;
+let server: http.Server | undefined;
+let io: Server | undefined;
+
+if (!isServerless) {
+  server = http.createServer(app);
+  io = new Server(server, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST']
+    }
+  });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -64,16 +73,20 @@ function requireRole(roles: ('admin' | 'faculty' | 'student')[]) {
 
 // --- Live Dashboard Socket Manager ---
 
-io.on('connection', (socket) => {
-  console.log('Client connected to monitor:', socket.id);
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+if (io) {
+  io.on('connection', (socket) => {
+    console.log('Client connected to monitor:', socket.id);
+    socket.on('disconnect', () => {
+      console.log('Client disconnected:', socket.id);
+    });
   });
-});
+}
 
-// Helper to broadcast changes to all monitors
+// Helper to broadcast changes to all monitors (no-op in serverless mode)
 function broadcastMonitoringUpdate() {
-  io.emit('monitor:refresh');
+  if (io) {
+    io.emit('monitor:refresh');
+  }
 }
 
 // --- API Routes ---
@@ -964,15 +977,35 @@ app.post('/api/reports/student/:studentId/assessment/:assessmentId/send-email', 
 
 // --- Server Boot ---
 
-async function start() {
-  try {
-    await initDb();
-    server.listen(PORT, () => {
-      console.log(`Backend server running on http://localhost:${PORT}`);
+// Database initialization promise (shared between standalone and serverless)
+let dbInitialized = false;
+let dbInitPromise: Promise<void> | null = null;
+
+export async function ensureDbReady() {
+  if (dbInitialized) return;
+  if (!dbInitPromise) {
+    dbInitPromise = initDb().then(() => {
+      dbInitialized = true;
     });
-  } catch (err) {
-    console.error('Database connection failed:', err);
   }
+  await dbInitPromise;
 }
 
-start();
+// Only start the HTTP server when running standalone (not on Vercel)
+if (!isServerless) {
+  async function start() {
+    try {
+      await ensureDbReady();
+      server!.listen(PORT, () => {
+        console.log(`Backend server running on http://localhost:${PORT}`);
+      });
+    } catch (err) {
+      console.error('Database connection failed:', err);
+    }
+  }
+  start();
+}
+
+// Export for Vercel serverless function
+export { app };
+export default app;

@@ -28,3 +28,6 @@ temp_sandbox/
 Thumbs.db
 
 /generated/prisma
+
+# Vercel
+.vercel/
