@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - JWT_SECRET=super_secret_enterprise_jwt_key_12345
+      - CLIENT_URL=http://localhost:3000
+      - GEMINI_API_KEY=mock_key
+      - SMTP_HOST=smtp.mailtrap.io
+      - SMTP_PORT=2525
+    volumes:
+      - ./backend/data:/app/data
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
