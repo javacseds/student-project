@@ -9,6 +9,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "ai-coding-assessment-platform": "file:..",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -17,6 +18,8 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.13",
     "pdfkit": "^0.15.0",
+    "pg": "^8.21.0",
+    "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.3",
     "socket.io": "^4.7.5",
     "sqlite3": "^5.1.7"

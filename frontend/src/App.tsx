@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { loader } from '@monaco-editor/react';
+
+// Load Monaco Editor assets locally from public folder rather than CDN
+loader.config({ paths: { vs: '/monaco-editor/min/vs' } });
 import { 
   Shield, AlertTriangle, Play, CheckCircle2, User as UserIcon, LogOut, Clock,
   FileCode, Terminal, ZoomIn, ZoomOut, Maximize, RefreshCw, Send, Plus, 
@@ -1169,7 +1172,7 @@ export default function App() {
                   </div>
 
                   {/* Monaco Editor Component */}
-                  <div className="flex-1 min-h-[300px]">
+                  <div className="flex-1 min-h-0">
                     <Editor
                       height="100%"
                       language={selectedLanguage.toLowerCase()}

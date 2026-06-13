@@ -35,11 +35,125 @@ async function checkCommand(command: string): Promise<boolean> {
   }
 }
 
+function decodeBase64(str?: string | null): string {
+  if (!str) return '';
+  return Buffer.from(str, 'base64').toString('utf-8');
+}
+
+function getJudge0LanguageId(language: string): number {
+  switch (language.toLowerCase()) {
+    case 'c':
+      return 50; // GCC 9.2.0
+    case 'java':
+      return 62; // OpenJDK 13.0.1
+    case 'python':
+    case 'python3':
+      return 71; // Python 3.8.1
+    default:
+      return 71;
+  }
+}
+
+async function runJudge0(
+  language: string,
+  code: string,
+  testCase: TestCase
+): Promise<ExecutionResult> {
+  const apiUrl = process.env.JUDGE0_API_URL;
+  if (!apiUrl) {
+    throw new Error('Judge0 API URL is not configured.');
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+
+  if (process.env.JUDGE0_API_KEY) {
+    headers['x-rapidapi-key'] = process.env.JUDGE0_API_KEY;
+  }
+  if (process.env.JUDGE0_API_HOST) {
+    headers['x-rapidapi-host'] = process.env.JUDGE0_API_HOST;
+  }
+  if (process.env.JUDGE0_AUTH_TOKEN) {
+    headers['X-Auth-Token'] = process.env.JUDGE0_AUTH_TOKEN;
+  }
+
+  const body = {
+    source_code: Buffer.from(code).toString('base64'),
+    language_id: getJudge0LanguageId(language),
+    stdin: Buffer.from(testCase.input || '').toString('base64')
+  };
+
+  const url = `${apiUrl.replace(/\/$/, '')}/submissions?base64_encoded=true&wait=true`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Judge0 API error: ${response.status} - ${errorText}`);
+  }
+
+  const data: any = await response.json();
+
+  const statusId = data.status?.id;
+  const stdout = decodeBase64(data.stdout);
+  const stderr = decodeBase64(data.stderr);
+  const compileOutput = decodeBase64(data.compile_output);
+
+  if (statusId === 3) { // Accepted
+    return {
+      success: true,
+      compileSuccess: true,
+      output: stdout
+    };
+  } else if (statusId === 4) { // Wrong Answer
+    return {
+      success: false,
+      compileSuccess: true,
+      output: stdout
+    };
+  } else if (statusId === 5) { // Time Limit Exceeded
+    return {
+      success: false,
+      compileSuccess: true,
+      output: '',
+      error: 'Time Limit Exceeded: Possible Infinite Loop Detected.',
+      timeLimitExceeded: true
+    };
+  } else if (statusId === 6) { // Compilation Error
+    return {
+      success: false,
+      compileSuccess: false,
+      output: '',
+      error: compileOutput || 'Compilation Error'
+    };
+  } else { // Runtime Errors
+    return {
+      success: false,
+      compileSuccess: true,
+      output: stdout,
+      error: stderr || data.status?.description || 'Runtime Error'
+    };
+  }
+}
+
 export async function runCode(
   language: string,
   code: string,
   testCase: TestCase
 ): Promise<ExecutionResult> {
+  // Use Judge0 if configured
+  if (process.env.JUDGE0_API_URL) {
+    try {
+      return await runJudge0(language, code, testCase);
+    } catch (err: any) {
+      console.error('Judge0 run failed, falling back to local runner:', err.message);
+    }
+  }
+
   const runId = Math.random().toString(36).substring(7);
   const userSubDir = path.join(sandboxDir, `run_${runId}`);
   fs.mkdirSync(userSubDir, { recursive: true });

@@ -1,14 +1,30 @@
 import { Sequelize, DataTypes, Model } from 'sequelize';
 import path from 'path';
 import fs from 'fs';
+import dotenv from 'dotenv';
 import { getQuestions } from '../../shared/question-bank';
 
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: dbPath,
-  logging: false
-});
+// Load env variables from backend or root directory
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      }
+    })
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: path.join(__dirname, '..', 'database.sqlite'),
+      logging: false
+    });
 
 // --- Model Definitions ---
 
@@ -228,7 +244,8 @@ Question.belongsToMany(Assessment, { through: AssessmentQuestion, foreignKey: 'q
 // --- Initialization and Seeding ---
 
 export async function initDb() {
-  await sequelize.sync({ alter: true });
+  const isPostgres = sequelize.getDialect() === 'postgres';
+  await sequelize.sync({ alter: !isPostgres });
   console.log('Database synced successfully.');
 
   // Seed Questions
@@ -255,6 +272,65 @@ export async function initDb() {
       });
     }
     console.log(`Seeded ${qList.length} questions.`);
+  }
+
+  // Seed Assessments
+  const assessmentCount = await Assessment.count();
+  if (assessmentCount === 0) {
+    console.log('Seeding default assessments with proper dates...');
+    
+    const asm1 = await Assessment.create({
+      title: 'Python Programming Basics',
+      description: 'Test your understanding of basic Python programming syntax, variables, operators, and control flow.',
+      durationMinutes: 45,
+      date: '2026-06-15 10:00 AM',
+      createdBy: 1
+    });
+
+    const asm2 = await Assessment.create({
+      title: 'Java Data Structures Challenge',
+      description: 'Intermediate exam focusing on arrays, loops, and fundamental data structures implementation in Java.',
+      durationMinutes: 90,
+      date: '2026-06-16 02:00 PM',
+      createdBy: 1
+    });
+
+    const asm3 = await Assessment.create({
+      title: 'Advanced Programming & Logic Practice',
+      description: 'Solve complex algorithms, patterns, and nested logic problems within the time limit using C/C++/Java/Python.',
+      durationMinutes: 120,
+      date: '2026-06-17 09:30 AM',
+      createdBy: 1
+    });
+
+    // Link Questions to Assessments in AssessmentQuestion table
+    const qIds1 = [1, 4, 7, 10];
+    for (let i = 0; i < qIds1.length; i++) {
+      await AssessmentQuestion.create({
+        assessmentId: asm1.id,
+        questionId: qIds1[i],
+        orderIndex: i
+      });
+    }
+
+    const qIds2 = [19, 22, 23, 25, 32];
+    for (let i = 0; i < qIds2.length; i++) {
+      await AssessmentQuestion.create({
+        assessmentId: asm2.id,
+        questionId: qIds2[i],
+        orderIndex: i
+      });
+    }
+
+    const qIds3 = [13, 16, 28, 29, 31];
+    for (let i = 0; i < qIds3.length; i++) {
+      await AssessmentQuestion.create({
+        assessmentId: asm3.id,
+        questionId: qIds3[i],
+        orderIndex: i
+      });
+    }
+    console.log('Seeded assessments successfully.');
   }
 }
 

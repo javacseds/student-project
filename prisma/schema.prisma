@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model assessment_questions {
+  id           Int         @id @default(autoincrement())
+  assessmentId Int
+  questionId   Int
+  orderIndex   Int
+  createdAt    DateTime    @db.Timestamptz(6)
+  updatedAt    DateTime    @db.Timestamptz(6)
+  assessments  assessments @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questions    questions   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, questionId])
+}
+
+model assessments {
+  id                   Int                    @id @default(autoincrement())
+  title                String                 @db.VarChar(255)
+  description          String
+  durationMinutes      Int                    @default(60)
+  date                 String                 @db.VarChar(255)
+  createdBy            Int
+  createdAt            DateTime               @db.Timestamptz(6)
+  updatedAt            DateTime               @db.Timestamptz(6)
+  assessment_questions assessment_questions[]
+  exam_sessions        exam_sessions[]
+  submissions          submissions[]
+  violation_logs       violation_logs[]
+}
+
+model exam_sessions {
+  id                      Int         @id @default(autoincrement())
+  studentId               Int
+  assessmentId            Int
+  tokenUsed               String?     @db.VarChar(255)
+  loginTime               DateTime?   @db.Timestamptz(6)
+  logoutTime              DateTime?   @db.Timestamptz(6)
+  status                  String?     @default("Active") @db.VarChar(255)
+  currentQuestionIndex    Int?        @default(0)
+  inactivityWarningsCount Int?        @default(0)
+  compilationCount        Int?        @default(0)
+  attemptsToday           Int?        @default(1)
+  createdAt               DateTime    @db.Timestamptz(6)
+  updatedAt               DateTime    @db.Timestamptz(6)
+  assessments             assessments @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  users                   users       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model questions {
+  id                   Int                    @id
+  title                String                 @db.VarChar(255)
+  topic                String                 @db.VarChar(255)
+  difficulty           String                 @db.VarChar(255)
+  description          String
+  constraints          String
+  inputFormat          String
+  outputFormat         String
+  sampleInput          String
+  sampleOutput         String
+  explanation          String
+  visibleTestCases     String
+  hiddenTestCases      String
+  languageSupport      String
+  createdAt            DateTime               @db.Timestamptz(6)
+  updatedAt            DateTime               @db.Timestamptz(6)
+  assessment_questions assessment_questions[]
+  submissions          submissions[]
+}
+
+model submissions {
+  id                   Int         @id @default(autoincrement())
+  studentId            Int
+  assessmentId         Int
+  questionId           Int
+  selectedLanguage     String      @db.VarChar(255)
+  submittedCode        String
+  status               String      @db.VarChar(255)
+  passedTestCasesCount Int
+  totalTestCasesCount  Int
+  aiScore              Int?
+  aiFeedback           String?
+  createdAt            DateTime    @db.Timestamptz(6)
+  updatedAt            DateTime    @db.Timestamptz(6)
+  assessments          assessments @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questions            questions   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  users                users       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model tokens {
+  id          Int      @id @default(autoincrement())
+  tokenString String   @unique @db.VarChar(255)
+  studentId   Int
+  expiresAt   DateTime @db.Timestamptz(6)
+  isUsed      Boolean? @default(false)
+  createdAt   DateTime @db.Timestamptz(6)
+  updatedAt   DateTime @db.Timestamptz(6)
+  users       users    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model users {
+  id             Int              @id @default(autoincrement())
+  name           String           @db.VarChar(255)
+  email          String           @unique @db.VarChar(255)
+  passwordHash   String           @db.VarChar(255)
+  role           String           @db.VarChar(255)
+  rollNumber     String?          @unique @db.VarChar(255)
+  employeeId     String?          @unique @db.VarChar(255)
+  branch         String?          @db.VarChar(255)
+  year           Int?
+  department     String?          @db.VarChar(255)
+  status         String?          @default("active") @db.VarChar(255)
+  createdAt      DateTime         @db.Timestamptz(6)
+  updatedAt      DateTime         @db.Timestamptz(6)
+  exam_sessions  exam_sessions[]
+  submissions    submissions[]
+  tokens         tokens[]
+  violation_logs violation_logs[]
+}
+
+model violation_logs {
+  id           Int         @id @default(autoincrement())
+  studentId    Int
+  assessmentId Int
+  type         String      @db.VarChar(255)
+  warningLevel Int
+  details      String
+  createdAt    DateTime    @db.Timestamptz(6)
+  updatedAt    DateTime    @db.Timestamptz(6)
+  assessments  assessments @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  users        users       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}

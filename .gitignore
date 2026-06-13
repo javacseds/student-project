@@ -9,6 +9,7 @@ backend/dist/
 frontend/dist/
 
 # Databases and configurations
+.env
 backend/.env
 backend/database.sqlite
 
@@ -25,3 +26,5 @@ temp_sandbox/
 # OS files
 .DS_Store
 Thumbs.db
+
+/generated/prisma
